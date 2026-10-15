@@ -1,0 +1,130 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Free Image Compressor</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f6fb;color:#172033}
+header{text-align:center;background:#173b78;color:white;padding:30px 16px}
+header h1{margin:0 0 10px}
+main{max-width:720px;margin:30px auto;padding:24px}
+.card{background:white;padding:24px;border-radius:16px;box-shadow:0 5px 24px #17203312}
+input,button{margin-top:14px}
+input[type=file]{width:100%;padding:12px;border:1px solid #ddd;border-radius:8px}
+input[type=range]{width:100%}
+button,.download{display:inline-block;background:#1769e0;color:white;border:0;border-radius:8px;padding:13px 18px;font-weight:bold;text-decoration:none;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
+#preview{display:none;max-width:100%;max-height:300px;margin:20px auto}
+#result{margin-top:20px;overflow-wrap:anywhere}
+.note{color:#526078;font-size:14px;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+<h1>Free Image Compressor</h1>
+<p>Compress your images online — free and simple.</p>
+</header>
+<main>
+<div class="card">
+<h2>Compress Your Image</h2>
+<p class="note">Choose an image, adjust quality, then download your compressed file.</p>
+<input id="file" type="file" accept="image/jpeg,image/png,image/webp">
+<img id="preview" alt="Selected image preview">
+<p>Compression quality: <strong id="qualityText">70%</strong></p>
+<input id="quality" type="range" min="10" max="95" value="70">
+<br>
+<button id="compress" disabled>Compress Image</button>
+<div id="result" aria-live="polite"></div>
+<p class="note">Your image is processed in your browser. PNG transparency may not be preserved when converting to JPEG.</p>
+</div>
+</main>
+<script>
+const fileInput=document.getElementById('file');
+const quality=document.getElementById('quality');
+const qualityText=document.getElementById('qualityText');
+const preview=document.getElementById('preview');
+const compressBtn=document.getElementById('compress');
+const result=document.getElementById('result');
+let selectedImage=null;
+let previewURL=null;
+
+quality.addEventListener('input',()=>{
+qualityText.textContent=quality.value+'%';
+});
+
+fileInput.addEventListener('change',()=>{
+selectedImage=null;
+compressBtn.disabled=true;
+result.replaceChildren();
+if(previewURL) URL.revokeObjectURL(previewURL);
+const file=fileInput.files[0];
+if(!file)return;
+if(!file.type.startsWith('image/')){
+result.textContent='Please choose an image file.';
+return;
+}
+if(file.size>15*1024*1024){
+result.textContent='Please choose an image smaller than 15 MB.';
+return;
+}
+const reader=new FileReader();
+reader.onload=()=>{
+const img=new Image();
+img.onload=()=>{
+selectedImage={img,file};
+previewURL=URL.createObjectURL(file);
+preview.src=previewURL;
+preview.style.display='block';
+compressBtn.disabled=false;
+};
+img.onerror=()=>{result.textContent='Could not open this image.';};
+img.src=reader.result;
+};
+reader.onerror=()=>{result.textContent='Could not read this file.';};
+reader.readAsDataURL(file);
+});
+
+compressBtn.addEventListener('click',()=>{
+if(!selectedImage)return;
+const {img,file}=selectedImage;
+compressBtn.disabled=true;
+result.textContent='Compressing...';
+try{
+const canvas=document.createElement('canvas');
+canvas.width=img.naturalWidth;
+canvas.height=img.naturalHeight;
+const ctx=canvas.getContext('2d');
+const outputType=file.type==='image/png'?'image/png':'image/jpeg';
+if(outputType==='image/jpeg'){
+ctx.fillStyle='#ffffff';
+ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+ctx.drawImage(img,0,0);
+canvas.toBlob(blob=>{
+compressBtn.disabled=false;
+if(!blob){result.textContent='Compression failed. Try another image.';return;}
+const url=URL.createObjectURL(blob);
+const size=n=>n<1024*1024?(n/1024).toFixed(1)+' KB':(n/1024/1024).toFixed(2)+' MB';
+const info=document.createElement('p');
+info.textContent='Original: '+size(file.size)+' | Compressed: '+size(blob.size);
+const link=document.createElement('a');
+link.className='download';
+link.href=url;
+link.download='compressed-'+file.name.replace(/\.[^.]+$/,'')+(outputType==='image/png'?'.png':'.jpg');
+link.textContent='Download Compressed Image';
+result.replaceChildren(info,link);
+if(blob.size>=file.size){
+info.textContent+=' — This image did not get smaller. Try a lower quality setting or a different image.';
+}
+},outputType,outputType==='image/jpeg'?Number(quality.value)/100:undefined);
+}catch(e){
+compressBtn.disabled=false;
+result.textContent='Something went wrong. Try another image.';
+}
+});
+</script>
+</body>
+</html>
